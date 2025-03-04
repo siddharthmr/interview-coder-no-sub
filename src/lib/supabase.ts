@@ -1,72 +1,51 @@
-import { createClient } from "@supabase/supabase-js"
+// Mock Supabase client for the application to run without authentication
 
-console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL)
-console.log(
-  "Supabase Anon Key:",
-  import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 10) + "..."
-)
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables")
+// Create a mock client that doesn't do anything
+export const supabase = {
+  auth: {
+    getUser: async () => ({ data: { user: null }, error: null }),
+    signInWithOAuth: async () => ({ data: null, error: null }),
+    signInWithPassword: async () => ({ data: null, error: null }),
+    signUp: async () => ({ data: null, error: null }),
+    signOut: async () => ({ error: null }),
+    onAuthStateChange: () => {
+      return { data: { subscription: { unsubscribe: () => {} } } }
+    },
+    exchangeCodeForSession: async () => ({ data: null, error: null })
+  },
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        single: async () => ({ data: null, error: null }),
+        maybeSingle: async () => ({ data: null, error: null })
+      }),
+      maybeSingle: async () => ({ data: null, error: null })
+    }),
+    update: () => ({
+      eq: () => ({
+        select: () => ({
+          single: async () => ({ data: null, error: null })
+        })
+      })
+    })
+  }),
+  channel: () => ({
+    on: () => ({
+      subscribe: () => ({
+        unsubscribe: () => {}
+      })
+    }),
+    subscribe: () => ({
+      unsubscribe: () => {}
+    }),
+    unsubscribe: () => {}
+  })
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    flowType: "pkce",
-    detectSessionInUrl: true,
-    persistSession: true,
-    autoRefreshToken: true,
-    debug: true,
-    storage: {
-      getItem: (key) => {
-        const item = localStorage.getItem(key)
-        console.log("Auth storage - Getting key:", key, "Value exists:", !!item)
-        return item
-      },
-      setItem: (key, value) => {
-        console.log("Auth storage - Setting key:", key)
-        localStorage.setItem(key, value)
-      },
-      removeItem: (key) => {
-        console.log("Auth storage - Removing key:", key)
-        localStorage.removeItem(key)
-      }
-    }
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10
-    },
-    headers: {
-      apikey: supabaseAnonKey
-    }
-  }
-})
-
+// Mock sign in function
 export const signInWithGoogle = async () => {
-  try {
-    console.log("Initiating Google sign in...")
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin
-      }
-    })
-
-    if (error) {
-      console.error("Google sign in error:", error)
-      throw error
-    }
-
-    console.log("Google sign in response:", data)
-    return data
-  } catch (error) {
-    console.error("Unexpected error during Google sign in:", error)
-    throw error
-  }
+  console.log("Mock Google sign in...")
+  return { url: "#" }
 }
 
 let channel: ReturnType<typeof supabase.channel> | null = null

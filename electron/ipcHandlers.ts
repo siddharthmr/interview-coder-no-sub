@@ -1,7 +1,6 @@
 // ipcHandlers.ts
 
 import { ipcMain, shell } from "electron"
-import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 import { IIpcHandlerDeps } from "./main"
 
@@ -26,23 +25,8 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   })
 
   ipcMain.handle("decrement-credits", async () => {
-    const mainWindow = deps.getMainWindow()
-    if (!mainWindow) return
-
-    try {
-      const currentCredits = await mainWindow.webContents.executeJavaScript(
-        "window.__CREDITS__"
-      )
-      if (currentCredits > 0) {
-        const newCredits = currentCredits - 1
-        await mainWindow.webContents.executeJavaScript(
-          `window.__CREDITS__ = ${newCredits}`
-        )
-        mainWindow.webContents.send("credits-updated", newCredits)
-      }
-    } catch (error) {
-      console.error("Error decrementing credits:", error)
-    }
+    // No need to decrement credits since we're bypassing the credit system
+    return
   })
 
   // Screenshot queue handlers
@@ -138,41 +122,27 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   ipcMain.handle("take-screenshot", async () => {
     try {
       const screenshotPath = await deps.takeScreenshot()
-      const preview = await deps.getImagePreview(screenshotPath)
-      return { path: screenshotPath, preview }
+      return { success: true, path: screenshotPath }
     } catch (error) {
       console.error("Error taking screenshot:", error)
-      return { error: "Failed to take screenshot" }
+      return { success: false, error: String(error) }
     }
   })
 
-  // Auth related handlers
-  ipcMain.handle("get-pkce-verifier", () => {
-    return randomBytes(32).toString("base64url")
+  // Cancel processing handler
+  ipcMain.handle("cancel-processing", () => {
+    deps.processingHelper?.cancelProcessing()
+    return { success: true }
   })
 
-  ipcMain.handle("open-external-url", (event, url: string) => {
-    shell.openExternal(url)
-  })
-
-  // Subscription handlers
-  ipcMain.handle("open-settings-portal", () => {
-    shell.openExternal("https://www.interviewcoder.co/settings")
-  })
-  ipcMain.handle("open-subscription-portal", async (_event, authData) => {
+  // External link handler
+  ipcMain.handle("open-external-link", async (event, url: string) => {
     try {
-      const url = "https://www.interviewcoder.co/checkout"
       await shell.openExternal(url)
       return { success: true }
     } catch (error) {
-      console.error("Error opening checkout page:", error)
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to open checkout page"
-      }
+      console.error("Error opening external link:", error)
+      return { success: false, error: String(error) }
     }
   })
 

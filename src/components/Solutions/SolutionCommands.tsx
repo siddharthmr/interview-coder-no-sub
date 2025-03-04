@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useToast } from "../../contexts/toast"
 import { Screenshot } from "../../types/screenshots"
-import { supabase } from "../../lib/supabase"
 import { LanguageSelector } from "../shared/LanguageSelector"
 import { COMMAND_KEY } from "../../utils/platform"
 
@@ -13,20 +12,6 @@ export interface SolutionCommandsProps {
   credits: number
   currentLanguage: string
   setLanguage: (language: string) => void
-}
-
-const handleSignOut = async () => {
-  try {
-    // Clear any local storage or electron-specific data first
-    localStorage.clear()
-    sessionStorage.clear()
-
-    // Then sign out from Supabase
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-  } catch (err) {
-    console.error("Error signing out:", err)
-  }
 }
 
 const SolutionCommands: React.FC<SolutionCommandsProps> = ({
@@ -42,14 +27,12 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
   const { showToast } = useToast()
 
   useEffect(() => {
-    if (onTooltipVisibilityChange) {
-      let tooltipHeight = 0
-      if (tooltipRef.current && isTooltipVisible) {
-        tooltipHeight = tooltipRef.current.offsetHeight + 10 // Adjust if necessary
-      }
-      onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
+    let tooltipHeight = 0
+    if (tooltipRef.current && isTooltipVisible) {
+      tooltipHeight = tooltipRef.current.offsetHeight + 10
     }
-  }, [isTooltipVisible, onTooltipVisibilityChange])
+    onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
+  }, [isTooltipVisible])
 
   const handleMouseEnter = () => {
     setIsTooltipVisible(true)
@@ -409,54 +392,12 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                       </div>
                     </div>
 
-                    {/* Separator and Log Out */}
+                    {/* Language Selector only */}
                     <div className="pt-3 mt-3 border-t border-white/10">
                       <LanguageSelector
                         currentLanguage={currentLanguage}
                         setLanguage={setLanguage}
                       />
-
-                      {/* Credits Display */}
-                      <div className="mb-3 px-2 space-y-1">
-                        <div className="flex items-center justify-between text-[13px] font-medium text-white/90">
-                          <span>Credits Remaining</span>
-                          <span>{credits} / 50</span>
-                        </div>
-                        <div className="text-[11px] text-white/50">
-                          Refill at{" "}
-                          <span
-                            className="underline cursor-pointer hover:opacity-80"
-                            onClick={() =>
-                              window.electronAPI.openSettingsPortal()
-                            }
-                          >
-                            www.interviewcoder.co/settings
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleSignOut}
-                        className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 transition-colors w-full"
-                      >
-                        <div className="w-4 h-4 flex items-center justify-center">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="w-3 h-3"
-                          >
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                          </svg>
-                        </div>
-                        Log Out
-                      </button>
                     </div>
                   </div>
                 </div>

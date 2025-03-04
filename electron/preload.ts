@@ -4,10 +4,6 @@ const { shell } = require("electron")
 
 // Types for the exposed Electron API
 interface ElectronAPI {
-  openSubscriptionPortal: (authData: {
-    id: string
-    email: string
-  }) => Promise<{ success: boolean; error?: string }>
   updateContentDimensions: (dimensions: {
     width: number
     height: number
@@ -43,8 +39,6 @@ interface ElectronAPI {
   triggerMoveRight: () => Promise<{ success: boolean; error?: string }>
   triggerMoveUp: () => Promise<{ success: boolean; error?: string }>
   triggerMoveDown: () => Promise<{ success: boolean; error?: string }>
-  onSubscriptionUpdated: (callback: () => void) => () => void
-  onSubscriptionPortalClosed: (callback: () => void) => () => void
   startUpdate: () => Promise<{ success: boolean; error?: string }>
   installUpdate: () => void
   onUpdateAvailable: (callback: (info: any) => void) => () => void
@@ -78,10 +72,6 @@ export const PROCESSING_EVENTS = {
 console.log("Preload script is running")
 
 const electronAPI = {
-  openSubscriptionPortal: async (authData: { id: string; email: string }) => {
-    return ipcRenderer.invoke("open-subscription-portal", authData)
-  },
-  openSettingsPortal: () => ipcRenderer.invoke("open-settings-portal"),
   updateContentDimensions: (dimensions: { width: number; height: number }) =>
     ipcRenderer.invoke("update-content-dimensions", dimensions),
   clearStore: () => ipcRenderer.invoke("clear-store"),
@@ -206,27 +196,6 @@ const electronAPI = {
   triggerMoveRight: () => ipcRenderer.invoke("trigger-move-right"),
   triggerMoveUp: () => ipcRenderer.invoke("trigger-move-up"),
   triggerMoveDown: () => ipcRenderer.invoke("trigger-move-down"),
-  onSubscriptionUpdated: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on("subscription-updated", subscription)
-    return () => {
-      ipcRenderer.removeListener("subscription-updated", subscription)
-    }
-  },
-  onSubscriptionPortalClosed: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on("subscription-portal-closed", subscription)
-    return () => {
-      ipcRenderer.removeListener("subscription-portal-closed", subscription)
-    }
-  },
-  onReset: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on(PROCESSING_EVENTS.RESET, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.RESET, subscription)
-    }
-  },
   startUpdate: () => ipcRenderer.invoke("start-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   onUpdateAvailable: (callback: (info: any) => void) => {
@@ -260,33 +229,16 @@ console.log(
   Object.keys(electronAPI)
 )
 
-// Expose the API
+// Add this focus restoration handler
+window.addEventListener("focus", () => {
+  console.log("Window focused")
+})
+
+// Expose the API to the renderer process
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
 
-console.log("electronAPI exposed to window")
+// Expose platform info
+contextBridge.exposeInMainWorld("platform", process.platform)
 
-// Add this focus restoration handler
-ipcRenderer.on("restore-focus", () => {
-  // Try to focus the active element if it exists
-  const activeElement = document.activeElement as HTMLElement
-  if (activeElement && typeof activeElement.focus === "function") {
-    activeElement.focus()
-  }
-})
-
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
-contextBridge.exposeInMainWorld("electron", {
-  ipcRenderer: {
-    on: (channel: string, func: (...args: any[]) => void) => {
-      if (channel === "auth-callback") {
-        ipcRenderer.on(channel, (event, ...args) => func(...args))
-      }
-    },
-    removeListener: (channel: string, func: (...args: any[]) => void) => {
-      if (channel === "auth-callback") {
-        ipcRenderer.removeListener(channel, (event, ...args) => func(...args))
-      }
-    }
-  }
-})
+// Log that preload is complete
+console.log("Preload script completed")

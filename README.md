@@ -1,151 +1,72 @@
 # Interview Coder
 
-An invisible desktop application that will help you pass your technical interviews.
+Interview Coder is a desktop application designed to help users with technical coding interviews. It allows users to take screenshots of coding problems, process them using AI, and get solutions.
 
-https://www.interviewcoder.co
+## Modified Version - No Authentication Required
 
-
-https://github.com/user-attachments/assets/0615b110-2670-4b0e-bc69-3c32a2d8a996
-
-## Invisibility Compatibility
-
-The application is invisible to:
-
-- Zoom versions below 6.1.6 (inclusive)
-- All browser-based screen recording software
-- All versions of Discord
-- Mac OS _screenshot_ functionality (Command + Shift + 3/4)
-
-Note: The application is **NOT** invisible to:
-
-- Zoom versions 6.1.6 and above
-  - https://zoom.en.uptodown.com/mac/versions (link to downgrade Zoom if needed)
-- Mac OS native screen _recording_ (Command + Shift + 5)
+This is a modified version of the Interview Coder application with the authentication and subscription requirements removed. You can run the application directly without needing to sign in or subscribe.
 
 ## Features
 
-- 🎯 99% Invisibility: Undetectable window that bypasses most screen capture methods
-- 📸 Smart Screenshot Capture: Capture both question text and code separately for better analysis
-- 🤖 AI-Powered Analysis: Automatically extracts and analyzes coding problems
-- 💡 Solution Generation: Get detailed explanations and solutions
-- 🔧 Real-time Debugging: Debug your code with AI assistance
-- 🎨 Window Management: Freely move and position the window anywhere on screen
+- Take screenshots of coding problems
+- Process screenshots to extract problem statements
+- Generate solutions in your preferred programming language
+- View time and space complexity analysis
+- Toggle window visibility with keyboard shortcuts
+- Move the window around the screen with keyboard shortcuts
 
-## Global Commands
+## Keyboard Shortcuts
 
-The application uses unidentifiable global keyboard shortcuts that won't be detected by browsers or other applications:
+- **Cmd/Ctrl + B**: Toggle window visibility
+- **Cmd/Ctrl + Q**: Quit the application
+- **Cmd/Ctrl + Shift + S**: Take a screenshot
+- **Cmd/Ctrl + Shift + P**: Process screenshots
+- **Arrow keys with Cmd/Ctrl**: Move window around the screen
 
-- Toggle Window Visibility: [Control or Cmd + b]
-- Move Window: [Control or Cmd + arrows]
-- Take Screenshot: [Control or Cmd + H]
-- Process Screenshots: [Control or Cmd + Enter]
-- Reset View: [Control or Cmd + R]
-- Quit: [Control or Cmd + Q]
+## Running the Application
 
-## Usage
-
-1. **Initial Setup**
-
-   - Launch the invisible window
-   - Login and subscribe
-
-2. **Capturing Problem**
-
-   - Use global shortcut [Control or Cmd + H] to take screenshots
-   - Screenshots are automatically added to the queue of up to 5.
-
-3. **Processing**
-
-   - AI analyzes the screenshots to extract:
-     - Problem requirements
-     - Code context
-   - System generates optimal solution strategy
-
-4. **Solution & Debugging**
-
-   - View generated solutions
-   - Use debugging feature to:
-     - Test different approaches
-     - Fix errors in your code
-     - Get line-by-line explanations
-   - Toggle between solutions and queue views
-
-5. **Window Management**
-   - Move window freely using global shortcut
-   - Toggle visibility as needed
-   - Window remains invisible to specified applications
-   - Reset view using Command + R
-
-## Prerequisites
+### Prerequisites
 
 - Node.js (v16 or higher)
-- npm or bun package manager
-- Subscription on https://www.interviewcoder.co/settings
-- Screen Recording Permission for Terminal/IDE
-  - On macOS:
-    1. Go to System Preferences > Security & Privacy > Privacy > Screen Recording
-    2. Ensure that Interview Coder has screen recording permission enabled
-    3. Restart Interview Coder after enabling permissions
-  - On Windows:
-    - No additional permissions needed
-  - On Linux:
-    - May require `xhost` access depending on your distribution
+- npm or yarn
 
-## Installation
+### Installation
 
 1. Clone the repository:
-
-```bash
-git clone https://github.com/ibttf/interview-coder-v1.git
-cd interview-coder-v1
-```
+   ```
+   git clone https://github.com/yourusername/interview-coder.git
+   cd interview-coder
+   ```
 
 2. Install dependencies:
+   ```
+   npm install
+   # or
+   yarn
+   ```
 
-```bash
-npm install
-# or if using bun
-bun install
-```
+3. Run the application in development mode:
+   ```
+   npm run dev
+   # or
+   yarn dev
+   ```
 
-## Running Locally
+4. Build the application for production:
+   ```
+   npm run build
+   # or
+   yarn build
+   ```
 
-1. Start the development server:
+## API Integration
 
-```bash
-npm run dev
-```
+This version of the application still requires an API connection to process screenshots and generate solutions. You'll need to set up your own API service or modify the code to use a different solution generation method.
 
-This will:
+## Disclaimer
 
-- Start the Vite development server
-- Launch the Electron application
-- Enable hot-reloading for development
+This modified version is for educational purposes only. The original Interview Coder application is a commercial product with subscription requirements.
 
-## Tech Stack
+## License
 
-- Electron
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- Radix UI Components
-- OpenAI API
-
-## Configuration
-
-1. On first launch, you'll need to provide your OpenAI API key
-2. The application will store your settings locally using electron-store
-
-## Building (for Roy)
-
-after npm run build, hit:
-
-```
-node scripts/manual-notarize.js "release/Interview-Coder-x64.dmg" && xcrun stapler staple "release/Interview-Coder-x64.dmg"
-node scripts/manual-notarize.js "release/Interview-Coder-arm64.dmg" && xcrun stapler staple "release/Interview-Coder-arm64.dmg"
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+This project is licensed under the ISC License.

@@ -42,29 +42,8 @@ export class ProcessingHelper {
   }
 
   private async getCredits(): Promise<number> {
-    const mainWindow = this.deps.getMainWindow()
-    if (!mainWindow) return 0
-
-    try {
-      await this.waitForInitialization(mainWindow)
-      const credits = await mainWindow.webContents.executeJavaScript(
-        "window.__CREDITS__"
-      )
-
-      if (
-        typeof credits !== "number" ||
-        credits === undefined ||
-        credits === null
-      ) {
-        console.warn("Credits not properly initialized")
-        return 0
-      }
-
-      return credits
-    } catch (error) {
-      console.error("Error getting credits:", error)
-      return 0
-    }
+    // Always return a high number of credits
+    return 999
   }
 
   private async getLanguage(): Promise<string> {
@@ -97,13 +76,8 @@ export class ProcessingHelper {
     const mainWindow = this.deps.getMainWindow()
     if (!mainWindow) return
 
-    // Check if we have any credits left
-    const credits = await this.getCredits()
-    if (credits < 1) {
-      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.OUT_OF_CREDITS)
-      return
-    }
-
+    // Credits check is bypassed - we always have enough credits
+    
     const view = this.deps.getView()
     console.log("Processing screenshots in view:", view)
 
@@ -561,6 +535,18 @@ export class ProcessingHelper {
     if (wasCancelled && mainWindow && !mainWindow.isDestroyed()) {
       // Send a clear message that processing was cancelled
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS)
+    }
+  }
+
+  public cancelProcessing(): void {
+    if (this.currentProcessingAbortController) {
+      this.currentProcessingAbortController.abort();
+      this.currentProcessingAbortController = null;
+    }
+    
+    if (this.currentExtraProcessingAbortController) {
+      this.currentExtraProcessingAbortController.abort();
+      this.currentExtraProcessingAbortController = null;
     }
   }
 }

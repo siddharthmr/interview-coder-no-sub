@@ -5,18 +5,32 @@ import log from "electron-log"
 export function initAutoUpdater() {
   console.log("Initializing auto-updater...")
 
-  // Skip update checks in development
+  // For testing purposes, we'll allow the auto-updater to run in development mode
+  // but log a warning
   if (!app.isPackaged) {
-    console.log("Skipping auto-updater in development mode")
+    console.log("Auto-updater running in development mode (for testing)")
+  }
+
+  // If we're in development mode, simulate update events for testing
+  if (!app.isPackaged || !process.env.GH_TOKEN) {
+    console.log("Auto updater: Development mode, update notifications disabled")
+    
+    // Disable all update events
+    ipcMain.handle("start-update", async () => {
+      console.log("Update download requested, but updates are disabled")
+      return { success: true }
+    })
+    
+    ipcMain.handle("install-update", () => {
+      console.log("Update installation requested, but updates are disabled")
+    })
+    
+    // No simulated update events will be sent
+    
     return
   }
 
-  if (!process.env.GH_TOKEN) {
-    console.error("GH_TOKEN environment variable is not set")
-    return
-  }
-
-  // Configure auto updater
+  // Configure auto updater for production
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowDowngrade = true

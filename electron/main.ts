@@ -8,7 +8,7 @@ import { initAutoUpdater } from "./autoUpdater"
 import * as dotenv from "dotenv"
 
 // Constants
-const isDev = !app.isPackaged
+const isDev = process.env.NODE_ENV === "development" || !app.isPackaged
 
 // Application State
 const state = {
@@ -65,7 +65,7 @@ export interface IProcessingHelperDeps {
   deleteScreenshot: (
     path: string
   ) => Promise<{ success: boolean; error?: string }>
-  setHasDebugged: (value: boolean) => void
+  setHasDebugged: (hasDebugged: boolean) => void
   getHasDebugged: () => boolean
   PROCESSING_EVENTS: typeof state.PROCESSING_EVENTS
 }
@@ -101,6 +101,7 @@ export interface IIpcHandlerDeps {
   toggleMainWindow: () => void
   clearQueues: () => void
   setView: (view: "queue" | "solutions" | "debug") => void
+  setHasDebugged: (value: boolean) => void
   moveWindowLeft: () => void
   moveWindowRight: () => void
   moveWindowUp: () => void
@@ -150,69 +151,6 @@ function initializeHelpers() {
     moveWindowUp: () => moveWindowVertical((y) => y - state.step),
     moveWindowDown: () => moveWindowVertical((y) => y + state.step)
   } as IShortcutsHelperDeps)
-}
-
-// Auth callback handler
-
-// Register the interview-coder protocol
-if (process.platform === "darwin") {
-  app.setAsDefaultProtocolClient("interview-coder")
-} else {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
-    path.resolve(process.argv[1] || "")
-  ])
-}
-
-// Handle the protocol. In this case, we choose to show an Error Box.
-if (process.defaultApp && process.argv.length >= 2) {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
-    path.resolve(process.argv[1])
-  ])
-}
-
-// Force Single Instance Lock
-const gotTheLock = app.requestSingleInstanceLock()
-
-if (!gotTheLock) {
-  app.quit()
-} else {
-  app.on("second-instance", (event, commandLine) => {
-    // Someone tried to run a second instance, we should focus our window.
-    if (state.mainWindow) {
-      if (state.mainWindow.isMinimized()) state.mainWindow.restore()
-      state.mainWindow.focus()
-
-      // Protocol handler for state.mainWindow32
-      // argv: An array of the second instance's (command line / deep linked) arguments
-      if (process.platform === "win32") {
-        // Keep only command line / deep linked arguments
-        const deeplinkingUrl = commandLine.pop()
-        if (deeplinkingUrl) {
-          handleAuthCallback(deeplinkingUrl, state.mainWindow)
-        }
-      }
-    }
-  })
-}
-
-async function handleAuthCallback(url: string, win: BrowserWindow | null) {
-  try {
-    console.log("Auth callback received:", url)
-    const urlObj = new URL(url)
-    const code = urlObj.searchParams.get("code")
-
-    if (!code) {
-      console.error("Missing code in callback URL")
-      return
-    }
-
-    if (win) {
-      // Send the code to the renderer for PKCE exchange
-      win.webContents.send("auth-callback", { code })
-    }
-  } catch (error) {
-    console.error("Error handling auth callback:", error)
-  }
 }
 
 // Window management functions
@@ -269,31 +207,21 @@ async function createWindow(): Promise<void> {
     "did-fail-load",
     async (event, errorCode, errorDescription) => {
       console.error("Window failed to load:", errorCode, errorDescription)
-      if (isDev) {
-        // In development, retry loading after a short delay
-        console.log("Retrying to load development server...")
-        setTimeout(() => {
-          state.mainWindow?.loadURL("http://localhost:54321").catch((error) => {
-            console.error("Failed to load dev server on retry:", error)
-          })
-        }, 1000)
-      }
+      // Always try to load the built files on failure
+      console.log("Attempting to load built files...")
+      setTimeout(() => {
+        state.mainWindow?.loadFile(path.join(__dirname, "../dist/index.html")).catch((error) => {
+          console.error("Failed to load built files on retry:", error)
+        })
+      }, 1000)
     }
   )
 
-  if (isDev) {
-    // In development, load from the dev server
-    state.mainWindow.loadURL("http://localhost:54321").catch((error) => {
-      console.error("Failed to load dev server:", error)
-    })
-  } else {
-    // In production, load from the built files
-    console.log(
-      "Loading production build:",
-      path.join(__dirname, "../dist/index.html")
-    )
-    state.mainWindow.loadFile(path.join(__dirname, "../dist/index.html"))
-  }
+  // Load the app - always load from built files
+  console.log("Loading application from built files...")
+  state.mainWindow?.loadFile(path.join(__dirname, "../dist/index.html")).catch((error) => {
+    console.error("Failed to load built files:", error)
+  })
 
   // Configure window behavior
   state.mainWindow.webContents.setZoomFactor(1)
@@ -301,12 +229,9 @@ async function createWindow(): Promise<void> {
     state.mainWindow.webContents.openDevTools()
   }
   state.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    console.log("Attempting to open URL:", url)
-    if (url.includes("google.com") || url.includes("supabase.co")) {
-      shell.openExternal(url)
-      return { action: "deny" }
-    }
-    return { action: "allow" }
+    // Allow opening URLs in external browser
+    shell.openExternal(url)
+    return { action: "deny" }
   })
 
   // Enhanced screen capture resistance
@@ -470,22 +395,16 @@ function setWindowDimensions(width: number, height: number): void {
 
 // Environment setup
 function loadEnvVariables() {
-  if (isDev) {
-    console.log("Loading env variables from:", path.join(process.cwd(), ".env"))
-    dotenv.config({ path: path.join(process.cwd(), ".env") })
-  } else {
-    console.log(
-      "Loading env variables from:",
-      path.join(process.resourcesPath, ".env")
-    )
-    dotenv.config({ path: path.join(process.resourcesPath, ".env") })
+  try {
+    dotenv.config()
+    console.log("Environment variables loaded:", {
+      NODE_ENV: process.env.NODE_ENV,
+      // Remove Supabase references
+      OPEN_AI_API_KEY: process.env.OPEN_AI_API_KEY ? "exists" : "missing"
+    })
+  } catch (error) {
+    console.error("Error loading environment variables:", error)
   }
-  console.log("Loaded environment variables:", {
-    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ? "exists" : "missing",
-    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY
-      ? "exists"
-      : "missing"
-  })
 }
 
 // Initialize application
@@ -507,6 +426,7 @@ async function initializeApp() {
       toggleMainWindow,
       clearQueues,
       setView,
+      setHasDebugged,
       moveWindowLeft: () =>
         moveWindowHorizontal((x) =>
           Math.max(-(state.windowSize?.width || 0) / 2, x - state.step)
@@ -536,50 +456,6 @@ async function initializeApp() {
     app.quit()
   }
 }
-
-// Handle the auth callback in development
-app.on("open-url", (event, url) => {
-  console.log("open-url event received:", url)
-  event.preventDefault()
-  if (url.startsWith("interview-coder://")) {
-    handleAuthCallback(url, state.mainWindow)
-  }
-})
-
-// Handle the auth callback in production (Windows/Linux)
-app.on("second-instance", (event, commandLine) => {
-  console.log("second-instance event received:", commandLine)
-  const url = commandLine.find((arg) => arg.startsWith("interview-coder://"))
-  if (url) {
-    handleAuthCallback(url, state.mainWindow)
-  }
-
-  // Focus or create the main window
-  if (!state.mainWindow) {
-    createWindow()
-  } else {
-    if (state.mainWindow.isMinimized()) state.mainWindow.restore()
-    state.mainWindow.focus()
-  }
-})
-
-// Prevent multiple instances of the app
-if (!app.requestSingleInstanceLock()) {
-  app.quit()
-} else {
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit()
-      state.mainWindow = null
-    }
-  })
-}
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
 
 // State getter/setter functions
 function getMainWindow(): BrowserWindow | null {
@@ -664,7 +540,6 @@ export {
   setWindowDimensions,
   moveWindowHorizontal,
   moveWindowVertical,
-  handleAuthCallback,
   getMainWindow,
   getView,
   setView,
