@@ -104,11 +104,6 @@ const Queue: React.FC<QueueProps> = ({
         console.error("Processing error:", error)
       }),
       window.electronAPI.onProcessingNoScreenshots(() => {
-        showToast(
-          "No Screenshots",
-          "There are no screenshots to process.",
-          "neutral"
-        )
       }),
       window.electronAPI.onOutOfCredits(() => {
         showToast(

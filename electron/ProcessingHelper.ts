@@ -2,9 +2,9 @@
 import fs from "node:fs"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
-import axios from "axios"
 import { app } from "electron"
 import { BrowserWindow } from "electron"
+import OpenAI from "openai"
 
 const isDev = !app.isPackaged
 const API_BASE_URL = isDev
@@ -14,6 +14,9 @@ const API_BASE_URL = isDev
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
+  private readonly openRouterApiKey: string
+
+  private openai: OpenAI
 
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
@@ -22,6 +25,17 @@ export class ProcessingHelper {
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
     this.screenshotHelper = deps.getScreenshotHelper()
+
+    this.openRouterApiKey = process.env.OPENROUTER_API_KEY || ""
+
+    this.openai = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: this.openRouterApiKey,
+      defaultHeaders: {
+        "HTTP-Referer": "interviewcoder-app",
+        "X-Title": "InterviewCoder"
+      }
+    })
   }
 
   private async waitForInitialization(
@@ -48,7 +62,7 @@ export class ProcessingHelper {
 
   private async getLanguage(): Promise<string> {
     const mainWindow = this.deps.getMainWindow()
-    if (!mainWindow) return "python"
+    if (!mainWindow) return "java"
 
     try {
       await this.waitForInitialization(mainWindow)
@@ -62,13 +76,13 @@ export class ProcessingHelper {
         language === null
       ) {
         console.warn("Language not properly initialized")
-        return "python"
+        return "java"
       }
 
       return language
     } catch (error) {
       console.error("Error getting language:", error)
-      return "python"
+      return "java"
     }
   }
 
@@ -77,7 +91,7 @@ export class ProcessingHelper {
     if (!mainWindow) return
 
     // Credits check is bypassed - we always have enough credits
-    
+
     const view = this.deps.getView()
     console.log("Processing screenshots in view:", view)
 
@@ -90,11 +104,10 @@ export class ProcessingHelper {
         return
       }
 
-      try {
-        // Initialize AbortController
-        this.currentProcessingAbortController = new AbortController()
-        const { signal } = this.currentProcessingAbortController
+      this.currentProcessingAbortController = new AbortController()
+      const { signal } = this.currentProcessingAbortController
 
+      try {
         const screenshots = await Promise.all(
           screenshotQueue.map(async (path) => ({
             path,
@@ -103,450 +116,351 @@ export class ProcessingHelper {
           }))
         )
 
-        const result = await this.processScreenshotsHelper(screenshots, signal)
-
-        if (!result.success) {
-          console.log("Processing failed:", result.error)
-          if (result.error?.includes("API Key out of credits")) {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.OUT_OF_CREDITS
-            )
-          } else if (result.error?.includes("OpenAI API key not found")) {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-              "OpenAI API key not found in environment variables. Please set the OPEN_AI_API_KEY environment variable."
-            )
-          } else {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-              result.error
-            )
-          }
-          // Reset view back to queue on error
-          console.log("Resetting view to queue due to error")
-          this.deps.setView("queue")
-          return
-        }
-
-        // Only set view to solutions if processing succeeded
-        console.log("Setting view to solutions after successful processing")
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
-          result.data
-        )
-        this.deps.setView("solutions")
-      } catch (error: any) {
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-          error
-        )
-        console.error("Processing error:", error)
-        if (axios.isCancel(error)) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            "Processing was canceled by the user."
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            error.message || "Server error. Please try again."
-          )
-        }
-        // Reset view back to queue on error
-        console.log("Resetting view to queue due to error")
-        this.deps.setView("queue")
-      } finally {
-        this.currentProcessingAbortController = null
-      }
-    } else {
-      // view == 'solutions'
-      const extraScreenshotQueue =
-        this.screenshotHelper.getExtraScreenshotQueue()
-      console.log("Processing extra queue screenshots:", extraScreenshotQueue)
-      if (extraScreenshotQueue.length === 0) {
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS)
-        return
-      }
-      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START)
-
-      // Initialize AbortController
-      this.currentExtraProcessingAbortController = new AbortController()
-      const { signal } = this.currentExtraProcessingAbortController
-
-      try {
-        const screenshots = await Promise.all(
-          [
-            ...this.screenshotHelper.getScreenshotQueue(),
-            ...extraScreenshotQueue
-          ].map(async (path) => ({
-            path,
-            preview: await this.screenshotHelper.getImagePreview(path),
-            data: fs.readFileSync(path).toString("base64")
-          }))
-        )
-        console.log(
-          "Combined screenshots for processing:",
-          screenshots.map((s) => s.path)
-        )
-
-        const result = await this.processExtraScreenshotsHelper(
+        const solveResult = await this.solveProblemWithScreenshots(
           screenshots,
           signal
         )
 
-        if (result.success) {
-          this.deps.setHasDebugged(true)
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_SUCCESS,
-            result.data
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            result.error
-          )
-        }
-      } catch (error: any) {
-        if (axios.isCancel(error)) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            "Extra processing was canceled by the user."
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            error.message
-          )
-        }
-      } finally {
-        this.currentExtraProcessingAbortController = null
-      }
-    }
-  }
-
-  private async processScreenshotsHelper(
-    screenshots: Array<{ path: string; data: string }>,
-    signal: AbortSignal
-  ) {
-    const MAX_RETRIES = 0
-    let retryCount = 0
-
-    while (retryCount <= MAX_RETRIES) {
-      try {
-        const imageDataList = screenshots.map((screenshot) => screenshot.data)
-        const mainWindow = this.deps.getMainWindow()
-        const language = await this.getLanguage()
-        let problemInfo
-
-        // First API call - extract problem info
-        try {
-          const extractResponse = await axios.post(
-            `${API_BASE_URL}/api/extract`,
-            { imageDataList, language },
-            {
-              signal,
-              timeout: 300000,
-              validateStatus: function (status) {
-                return status < 500
-              },
-              maxRedirects: 5,
-              headers: {
-                "Content-Type": "application/json"
-              }
-            }
-          )
-
-          problemInfo = extractResponse.data
-
-          // Store problem info in AppState
-          this.deps.setProblemInfo(problemInfo)
-
-          // Send first success event
-          if (mainWindow) {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.PROBLEM_EXTRACTED,
-              problemInfo
-            )
-
-            // Generate solutions after successful extraction
-            const solutionsResult = await this.generateSolutionsHelper(signal)
-            if (solutionsResult.success) {
-              // Clear any existing extra screenshots before transitioning to solutions view
-              this.screenshotHelper.clearExtraScreenshotQueue()
-              mainWindow.webContents.send(
-                this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
-                solutionsResult.data
-              )
-              return { success: true, data: solutionsResult.data }
-            } else {
-              throw new Error(
-                solutionsResult.error || "Failed to generate solutions"
-              )
-            }
-          }
-        } catch (error: any) {
-          // If the request was cancelled, don't retry
-          if (axios.isCancel(error)) {
-            return {
-              success: false,
-              error: "Processing was canceled by the user."
-            }
-          }
-
-          console.error("API Error Details:", {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            code: error.code
-          })
-
-          // Handle API-specific errors
-          if (
-            error.response?.data?.error &&
-            typeof error.response.data.error === "string"
-          ) {
-            if (error.response.data.error.includes("Operation timed out")) {
-              throw new Error(
-                "Operation timed out after 1 minute. Please try again."
-              )
-            }
-            if (error.response.data.error.includes("API Key out of credits")) {
-              throw new Error(error.response.data.error)
-            }
-            throw new Error(error.response.data.error)
-          }
-
-          // If we get here, it's an unknown error
-          throw new Error(error.message || "Server error. Please try again.")
-        }
-      } catch (error: any) {
-        // Log the full error for debugging
-        console.error("Processing error details:", {
-          message: error.message,
-          code: error.code,
-          response: error.response?.data,
-          retryCount
-        })
-
-        // If it's a cancellation or we've exhausted retries, return the error
-        if (axios.isCancel(error) || retryCount >= MAX_RETRIES) {
-          return { success: false, error: error.message }
-        }
-
-        // Increment retry count and continue
-        retryCount++
-      }
-    }
-
-    // If we get here, all retries failed
-    return {
-      success: false,
-      error: "Failed to process after multiple attempts. Please try again."
-    }
-  }
-
-  private async generateSolutionsHelper(signal: AbortSignal) {
-    try {
-      const problemInfo = this.deps.getProblemInfo()
-      const language = await this.getLanguage()
-
-      if (!problemInfo) {
-        throw new Error("No problem info available")
-      }
-
-      const response = await axios.post(
-        `${API_BASE_URL}/api/generate`,
-        { ...problemInfo, language },
-        {
-          signal,
-          timeout: 300000,
-          validateStatus: function (status) {
-            return status < 500
-          },
-          maxRedirects: 5,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      )
-
-      return { success: true, data: response.data }
-    } catch (error: any) {
-      const mainWindow = this.deps.getMainWindow()
-
-      // Handle timeout errors (both 504 and axios timeout)
-      if (error.code === "ECONNABORTED" || error.response?.status === 504) {
-        // Cancel ongoing API requests
-        this.cancelOngoingRequests()
-        // Clear both screenshot queues
-        this.deps.clearQueues()
-        // Update view state to queue
-        this.deps.setView("queue")
-        // Notify renderer to switch view
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("reset-view")
+        if (!solveResult.success) {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            "Request timed out. The server took too long to respond. Please try again."
+            solveResult.error
           )
+          this.deps.setView("queue")
+          return
         }
-        return {
-          success: false,
-          error: "Request timed out. Please try again."
-        }
-      }
 
-      if (error.response?.data?.error?.includes("API Key out of credits")) {
-        if (mainWindow) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.OUT_OF_CREDITS
-          )
-        }
-        return { success: false, error: error.response.data.error }
-      }
+        this.screenshotHelper.clearExtraScreenshotQueue()
 
-      if (
-        error.response?.data?.error?.includes(
-          "Please close this window and re-enter a valid Open AI API key."
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
+          solveResult.data
         )
-      ) {
-        if (mainWindow) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-          )
-        }
-        return { success: false, error: error.response.data.error }
+        this.deps.setView("solutions")
+      } catch (err: any) {
+        const errorMsg =
+          err?.message ||
+          (err?.name === "AbortError"
+            ? "Processing was canceled by the user."
+            : "An unknown error occurred")
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
+          errorMsg
+        )
+        this.deps.setView("queue")
+      } finally {
+        this.currentProcessingAbortController = null
       }
-
-      return { success: false, error: error.message }
+      return
     }
-  }
 
-  private async processExtraScreenshotsHelper(
-    screenshots: Array<{ path: string; data: string }>,
-    signal: AbortSignal
-  ) {
+    const extraScreenshotQueue = this.screenshotHelper.getExtraScreenshotQueue()
+    if (extraScreenshotQueue.length === 0) {
+      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS)
+      return
+    }
+
+    mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START)
+    this.currentExtraProcessingAbortController = new AbortController()
+    const { signal } = this.currentExtraProcessingAbortController
+
     try {
-      const imageDataList = screenshots.map((screenshot) => screenshot.data)
-      const problemInfo = this.deps.getProblemInfo()
-      const language = await this.getLanguage()
-
-      if (!problemInfo) {
-        throw new Error("No problem info available")
-      }
-
-      const response = await axios.post(
-        `${API_BASE_URL}/api/debug`,
-        { imageDataList, problemInfo, language },
-        {
-          signal,
-          timeout: 300000,
-          validateStatus: function (status) {
-            return status < 500
-          },
-          maxRedirects: 5,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
+      const screenshots = await Promise.all(
+        [
+          ...this.screenshotHelper.getScreenshotQueue(),
+          ...extraScreenshotQueue
+        ].map(async (path) => ({
+          path,
+          preview: await this.screenshotHelper.getImagePreview(path),
+          data: fs.readFileSync(path).toString("base64")
+        }))
       )
 
-      return { success: true, data: response.data }
-    } catch (error: any) {
-      const mainWindow = this.deps.getMainWindow()
+      const debugResult = await this.solveDebugWithScreenshots(
+        screenshots,
+        signal
+      )
 
-      // Handle cancellation first
-      if (axios.isCancel(error)) {
-        return {
-          success: false,
-          error: "Processing was canceled by the user."
-        }
-      }
-
-      if (error.response?.data?.error?.includes("Operation timed out")) {
-        // Cancel ongoing API requests
-        this.cancelOngoingRequests()
-        // Clear both screenshot queues
-        this.deps.clearQueues()
-        // Update view state to queue
-        this.deps.setView("queue")
-        // Notify renderer to switch view
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("reset-view")
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            "Operation timed out after 1 minute. Please try again."
-          )
-        }
-        return {
-          success: false,
-          error: "Operation timed out after 1 minute. Please try again."
-        }
-      }
-
-      if (error.response?.data?.error?.includes("API Key out of credits")) {
-        if (mainWindow) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.OUT_OF_CREDITS
-          )
-        }
-        return { success: false, error: error.response.data.error }
-      }
-
-      if (
-        error.response?.data?.error?.includes(
-          "Please close this window and re-enter a valid Open AI API key."
+      if (debugResult.success) {
+        this.deps.setHasDebugged(true)
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.DEBUG_SUCCESS,
+          debugResult.data
         )
-      ) {
-        if (mainWindow) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-          )
-        }
-        return { success: false, error: error.response.data.error }
+      } else {
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
+          debugResult.error
+        )
       }
-
-      return { success: false, error: error.message }
+    } catch (err: any) {
+      const errMsg =
+        err?.name === "AbortError"
+          ? "Extra processing was canceled by the user."
+          : err?.message || "An unknown error occurred"
+      mainWindow.webContents.send(
+        this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
+        errMsg
+      )
+    } finally {
+      this.currentExtraProcessingAbortController = null
     }
   }
 
   public cancelOngoingRequests(): void {
-    let wasCancelled = false
-
     if (this.currentProcessingAbortController) {
       this.currentProcessingAbortController.abort()
       this.currentProcessingAbortController = null
-      wasCancelled = true
     }
-
     if (this.currentExtraProcessingAbortController) {
       this.currentExtraProcessingAbortController.abort()
       this.currentExtraProcessingAbortController = null
-      wasCancelled = true
     }
-
-    // Reset hasDebugged flag
     this.deps.setHasDebugged(false)
-
-    // Clear any pending state
     this.deps.setProblemInfo(null)
 
     const mainWindow = this.deps.getMainWindow()
-    if (wasCancelled && mainWindow && !mainWindow.isDestroyed()) {
-      // Send a clear message that processing was cancelled
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS)
     }
   }
 
   public cancelProcessing(): void {
     if (this.currentProcessingAbortController) {
-      this.currentProcessingAbortController.abort();
-      this.currentProcessingAbortController = null;
+      this.currentProcessingAbortController.abort()
+      this.currentProcessingAbortController = null
     }
-    
     if (this.currentExtraProcessingAbortController) {
-      this.currentExtraProcessingAbortController.abort();
-      this.currentExtraProcessingAbortController = null;
+      this.currentExtraProcessingAbortController.abort()
+      this.currentExtraProcessingAbortController = null
+    }
+  }
+
+
+  private async solveProblemWithScreenshots(
+    screenshots: Array<{ path: string; data: string }>,
+    signal: AbortSignal
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    if (!this.openRouterApiKey) {
+      return {
+        success: false,
+        error: "OpenRouter API key not found. Please set OPENROUTER_API_KEY."
+      }
+    }
+
+    const mainWindow = this.deps.getMainWindow()
+
+    try {
+      const language = await this.getLanguage()
+      const imageContent = screenshots.map((s) => ({
+        type: "image_url" as const,
+        image_url: { url: `data:image/png;base64,${s.data}` }
+      }))
+
+      const messages: any[] = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `You are given screenshots of a coding problem. Analyze them to extract the problem details and produce a complete solution in ${language}. Take any provided example test cases, constraints, starting code, etc into account.
+
+Return ONLY JSON with exactly these keys:
+1) \"title\": string
+2) \"problem_statement\": string
+3) \"test_cases\": array of objects ({ \"input\": string, \"output\": string, \"explanation\": string })
+4) \"constraints\": array of strings
+5) \"thoughts\": array of short bullet strings (explain your reasoning)
+6) \"code\": string (full source code with appropriate indentation and spacing for language. include a brief comment ABOVE EVERY LINE, no extra blank lines. use proper indentation and spacing depending on the language)
+7) \"time_complexity\": string
+8) \"space_complexity\": string`
+            },
+            ...imageContent
+          ]
+        }
+      ]
+
+      const response = await this.openai.chat.completions.create(
+        {
+          model: "openai/o4-mini-high",
+          messages,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "full_problem_solve_and_extract",
+              strict: false,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  problem_statement: { type: "string" },
+                  test_cases: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        input: { type: "string" },
+                        output: { type: "string" },
+                        explanation: { type: "string" }
+                      },
+                      required: ["input", "output"]
+                    }
+                  },
+                  constraints: { type: "array", items: { type: "string" } },
+                  thoughts: { type: "array", items: { type: "string" } },
+                  code: { type: "string" },
+                  time_complexity: { type: "string" },
+                  space_complexity: { type: "string" }
+                },
+                required: [
+                  "problem_statement",
+                  "thoughts",
+                  "code",
+                  "time_complexity",
+                  "space_complexity"
+                ]
+              }
+            }
+          }
+        },
+        { signal }
+      )
+
+      const rawContent = response.choices[0]?.message?.content || ""
+      const parsed = JSON.parse(rawContent)
+
+      const problemInfo = {
+        title: parsed.title,
+        problem_statement: parsed.problem_statement,
+        test_cases: parsed.test_cases,
+        constraints: parsed.constraints
+      }
+
+      const solutionData = {
+        thoughts: parsed.thoughts,
+        code: parsed.code,
+        time_complexity: parsed.time_complexity,
+        space_complexity: parsed.space_complexity
+      }
+
+      this.deps.setProblemInfo(problemInfo)
+      if (mainWindow) {
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.PROBLEM_EXTRACTED,
+          problemInfo
+        )
+      }
+
+      return { success: true, data: solutionData }
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        return { success: false, error: "Processing canceled by user." }
+      }
+      return { success: false, error: err?.message || "Unknown error" }
+    }
+  }
+
+
+  private async solveDebugWithScreenshots(
+    screenshots: Array<{ path: string; data: string }>,
+    signal: AbortSignal
+  ): Promise<{
+    success: boolean
+    data?: {
+      new_code: string
+      thoughts: string[]
+      time_complexity: string
+      space_complexity: string
+    }
+    error?: string
+  }> {
+    if (!this.openRouterApiKey) {
+      return {
+        success: false,
+        error: "OpenRouter API key not found. Please set OPENROUTER_API_KEY."
+      }
+    }
+
+    const problemInfo = this.deps.getProblemInfo()
+    if (!problemInfo) {
+      return {
+        success: false,
+        error: "Cannot debug without original problem context. Please restart."
+      }
+    }
+
+    try {
+      const language = await this.getLanguage()
+      const imageContent = screenshots.map((s) => ({
+        type: "image_url" as const,
+        image_url: { url: `data:image/png;base64,${s.data}` }
+      }))
+
+      let problemDescription = `Original Problem:\nDescription: ${problemInfo.problem_statement}`
+      
+      if (problemInfo.title) {
+        problemDescription = `Original Problem:\nTitle: ${problemInfo.title}\nDescription: ${problemInfo.problem_statement}`
+      }
+      
+      if (problemInfo.constraints && problemInfo.constraints.length > 0) {
+        problemDescription += `\nConstraints: ${problemInfo.constraints.join(", ")}`
+      }
+      
+      if (problemInfo.test_cases && problemInfo.test_cases.length > 0) {
+        problemDescription += `\nTest Cases: ${problemInfo.test_cases.map((tc: { input: string; output: string; explanation?: string }) => `Input: ${tc.input}, Output: ${tc.output}${tc.explanation ? `, Explanation: ${tc.explanation}` : ''}`).join("; ")}`
+      }
+
+      const messages: any[] = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `The screenshots show buggy code and/or failing tests.\n\n${problemDescription}\n\nFix the code to solve the problem. Return ONLY JSON with keys: new_code, thoughts, time_complexity, space_complexity. Include comments above every line of code you changed. Use proper indentation and spacing depending on the language.`
+            },
+            ...imageContent
+          ]
+        }
+      ]
+
+      const response = await this.openai.chat.completions.create(
+        {
+          model: "openai/o4-mini-high",
+          messages,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "debug_fix",
+              strict: false,
+              schema: {
+                type: "object",
+                properties: {
+                  new_code: { type: "string" },
+                  thoughts: { type: "array", items: { type: "string" } },
+                  time_complexity: { type: "string" },
+                  space_complexity: { type: "string" }
+                },
+                required: [
+                  "new_code",
+                  "thoughts",
+                  "time_complexity",
+                  "space_complexity"
+                ]
+              }
+            }
+          }
+        },
+        { signal }
+      )
+
+      const rawContent = response.choices[0]?.message?.content || ""
+      const parsed = JSON.parse(rawContent)
+      return { success: true, data: parsed }
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        return { success: false, error: "Debug canceled by user." }
+      }
+      return { success: false, error: err?.message || "Unknown error" }
     }
   }
 }

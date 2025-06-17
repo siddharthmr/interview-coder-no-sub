@@ -38,7 +38,7 @@ function App() {
     variant: "neutral" as const
   })
   const [credits, setCredits] = useState<number>(999) // Set a high default value
-  const [currentLanguage, setCurrentLanguage] = useState<string>("python")
+  const [currentLanguage, setCurrentLanguage] = useState<string>("java")
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Helper function to safely update credits
@@ -80,7 +80,7 @@ function App() {
   useEffect(() => {
     // Set default values
     updateCredits(999) // High number of credits
-    updateLanguage("python")
+    updateLanguage("java")
     markInitialized()
   }, [updateCredits, updateLanguage, markInitialized])
 

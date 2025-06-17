@@ -396,11 +396,15 @@ function setWindowDimensions(width: number, height: number): void {
 // Environment setup
 function loadEnvVariables() {
   try {
-    dotenv.config()
+    const envPath = isDev 
+      ? path.join(__dirname, "../.env") 
+      : path.join(process.resourcesPath, ".env")
+    
+    dotenv.config({ path: envPath })
+    
     console.log("Environment variables loaded:", {
       NODE_ENV: process.env.NODE_ENV,
-      // Remove Supabase references
-      OPEN_AI_API_KEY: process.env.OPEN_AI_API_KEY ? "exists" : "missing"
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? "exists" : "missing"
     })
   } catch (error) {
     console.error("Error loading environment variables:", error)

@@ -21,11 +21,11 @@ const CodeSection = ({
   currentLanguage: string
 }) => (
   <div className="space-y-2">
-    <h2 className="text-[13px] font-medium text-white tracking-wide"></h2>
+    <h2 className="text-[12px] font-medium text-white tracking-wide"></h2>
     {isLoading ? (
       <div className="space-y-1.5">
-        <div className="mt-4 flex">
-          <p className="text-xs bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+        <div className="mt-3 flex">
+          <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
             Loading solutions...
           </p>
         </div>
@@ -39,10 +39,12 @@ const CodeSection = ({
           customStyle={{
             maxWidth: "100%",
             margin: 0,
-            padding: "1rem",
+            padding: "0.85rem",
             whiteSpace: "pre-wrap",
             wordBreak: "break-all",
-            backgroundColor: "rgba(22, 27, 34, 0.5)"
+            backgroundColor: "rgba(22, 27, 34, 0.5)",
+            fontSize: "11px",
+            lineHeight: "1.35"
           }}
           wrapLongLines={true}
         >
@@ -196,7 +198,7 @@ const Debug: React.FC<DebugProps> = ({
   }
 
   return (
-    <div ref={contentRef} className="relative space-y-3 px-4 py-3">
+    <div ref={contentRef} className="relative space-y-3 px-3.5 py-3">
       {/* Conditionally render the screenshot queue */}
       <div className="bg-transparent w-fit">
         <div className="pb-3">
@@ -222,9 +224,9 @@ const Debug: React.FC<DebugProps> = ({
       />
 
       {/* Main Content */}
-      <div className="w-full text-sm text-black bg-black/60 rounded-md">
+      <div className="w-full text-[13px] text-black bg-black/60 rounded-md">
         <div className="rounded-lg overflow-hidden">
-          <div className="px-4 py-3 space-y-4">
+          <div className="px-3.5 py-3 space-y-3.5">
             {/* Thoughts Section */}
             <ContentSection
               title="What I Changed"
@@ -234,7 +236,7 @@ const Debug: React.FC<DebugProps> = ({
                     <div className="space-y-1">
                       {thoughtsData.map((thought, index) => (
                         <div key={index} className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-2 shrink-0" />
+                          <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-1.5 shrink-0" />
                           <div>{thought}</div>
                         </div>
                       ))}

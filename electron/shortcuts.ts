@@ -79,6 +79,12 @@ export class ShortcutsHelper {
       this.deps.toggleMainWindow()
     })
 
+    if (process.platform === 'darwin') {
+      globalShortcut.register("Command+Q", () => {
+        app.quit()
+      })
+    }
+
     // Unregister shortcuts when quitting
     app.on("will-quit", () => {
       globalShortcut.unregisterAll()
