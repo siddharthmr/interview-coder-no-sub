@@ -1,9 +1,6 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  // Remove Supabase environment variables
-  readonly VITE_OPEN_AI_API_KEY: string
-}
+interface ImportMetaEnv {}
 
 interface ImportMeta {
   readonly env: ImportMetaEnv

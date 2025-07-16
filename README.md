@@ -1,16 +1,6 @@
-# Interview Coder
+# Screenshot Mailer
 
-This modified version is for educational purposes only. The original Interview Coder application is a commercial product with subscription requirements.
-
-## Changes
-- Removed all authentication
-- Replaced backend API service with direct OpenAI integration (via OpenRouter)
-- Solutions generated directly from screenshots using o4-mini-high rather than original 2 step method
-- Replaced app branding with generic system utility appearance (random name + generic icon)
-- Increased max screenshots from 2 to 5
-- Decreased font size to fit more code on screen
-- Cmd + Q to quit app on mac
-- Default language changed from Python to Java
+This app captures screenshots with **Cmd + H** and sends them to your email when **Cmd + Enter** is pressed. It is a stripped down version of the original Interview Coder project with all AI processing removed.
 
 ## Setup and Installation
 
@@ -18,7 +8,7 @@ This modified version is for educational purposes only. The original Interview C
 
 - Node.js (v16 or higher)
 - npm or yarn
-- OpenRouter API key
+- Gmail API credentials
 
 ### Installation
 
@@ -27,26 +17,26 @@ This modified version is for educational purposes only. The original Interview C
    git clone https://github.com/siddharthmr/interview-coder-no-sub.git
    cd interview-coder-no-sub
    ```
-
 2. Install dependencies:
    ```
    npm install
    # or
    yarn
    ```
-
-3. Create a `.env` file in the root directory:
+3. Create a `.env` file in the root directory with your Gmail credentials:
    ```
-   OPENROUTER_API_KEY=your_openrouter_api_key_here
+   GMAIL_CLIENT_ID=your_client_id
+   GMAIL_CLIENT_SECRET=your_client_secret
+   GMAIL_REFRESH_TOKEN=your_refresh_token
+   GMAIL_EMAIL_FROM=your_email@gmail.com
+   GMAIL_EMAIL_TO=destination_email@gmail.com
    ```
-
 4. Run the application in development mode:
    ```
    npm run dev
    # or
    yarn dev
    ```
-
 5. Build the application for production:
    ```
    npm run build
@@ -54,12 +44,4 @@ This modified version is for educational purposes only. The original Interview C
    yarn build
    ```
 
-## API Configuration
-
-This application uses OpenRouter API for AI processing with the o4-mini-high model. You'll need to:
-
-1. Sign up at [OpenRouter](https://openrouter.ai/)
-2. Get your API key from the dashboard
-3. Add the key to your `.env` file as shown above
-
-The app will process screenshots directly through OpenRouter without requiring any additional backend services.
+When running, press **Cmd + H** to capture screenshots and **Cmd + Enter** to email them to yourself.
