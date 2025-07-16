@@ -404,7 +404,9 @@ function loadEnvVariables() {
     
     console.log("Environment variables loaded:", {
       NODE_ENV: process.env.NODE_ENV,
-      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? "exists" : "missing"
+      GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID ? "exists" : "missing",
+      GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET ? "exists" : "missing",
+      GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN ? "exists" : "missing"
     })
   } catch (error) {
     console.error("Error loading environment variables:", error)
