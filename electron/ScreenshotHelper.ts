@@ -6,6 +6,7 @@ import { app } from "electron"
 import { v4 as uuidv4 } from "uuid"
 import { execFile } from "child_process"
 import { promisify } from "util"
+import { ImageProcessor } from "./ImageProcessor"
 
 const execFileAsync = promisify(execFile)
 
@@ -124,10 +125,14 @@ export class ScreenshotHelper {
     let screenshotPath = ""
     try {
       // Get screenshot buffer using native methods
-      const screenshotBuffer =
+      const rawScreenshotBuffer =
         process.platform === "darwin"
           ? await this.captureScreenshotMac()
           : await this.captureScreenshotWindows()
+
+      // Resize screenshot to 1080p while maintaining aspect ratio
+      console.log("Resizing screenshot to 1080p...")
+      const screenshotBuffer = await ImageProcessor.resizeTo1080p(rawScreenshotBuffer)
 
       // Save and manage the screenshot based on current view
       if (this.view === "queue") {

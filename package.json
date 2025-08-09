@@ -20,7 +20,12 @@
       "dist/**/*",
       "dist-electron/**/*",
       "package.json",
-      "electron/**/*"
+      "node_modules/sharp/**/*",
+      "node_modules/@img/sharp-*/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**"
     ],
     "directories": {
       "output": "release",
@@ -140,6 +145,7 @@
     "react-router-dom": "^6.22.0",
     "react-syntax-highlighter": "^15.6.1",
     "screenshot-desktop": "^1.15.0",
+    "sharp": "^0.34.3",
     "tailwind-merge": "^2.5.5",
     "uuid": "^11.0.3"
   },

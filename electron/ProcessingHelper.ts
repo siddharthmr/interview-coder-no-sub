@@ -282,7 +282,7 @@ Return ONLY JSON with exactly these keys:
 
       const response = await this.openai.chat.completions.create(
         {
-          model: "openai/o4-mini-high",
+          model: "openai/gpt-5-mini",
           messages,
           response_format: {
             type: "json_schema",
@@ -425,7 +425,7 @@ Return ONLY JSON with exactly these keys:
 
       const response = await this.openai.chat.completions.create(
         {
-          model: "openai/o4-mini-high",
+          model: "openai/gpt-5-mini",
           messages,
           response_format: {
             type: "json_schema",
