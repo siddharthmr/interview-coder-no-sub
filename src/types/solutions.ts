@@ -10,21 +10,14 @@ export interface SolutionsResponse {
 }
 
 export interface ProblemStatementData {
-  problem_statement: string
-  input_format: {
-    description: string
-    parameters: any[]
-  }
-  output_format: {
-    description: string
-    type: string
-    subtype: string
-  }
-  complexity: {
-    time: string
-    space: string
-  }
-  test_cases: any[]
-  validation_type: string
-  difficulty: string
+  title?: string
+  current_level: number
+  level_description: string
+}
+
+export interface SolutionData {
+  thoughts: string[]
+  solution_files: { [filename: string]: string }
+  level_summary: string
+  current_level: number
 }

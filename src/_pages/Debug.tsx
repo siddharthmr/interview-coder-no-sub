@@ -6,54 +6,92 @@ import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 import ScreenshotQueue from "../components/Queue/ScreenshotQueue"
 import SolutionCommands from "../components/Solutions/SolutionCommands"
 import { Screenshot } from "../types/screenshots"
-import { ComplexitySection, ContentSection } from "./Solutions"
+import { LevelSummarySection, ContentSection } from "./Solutions"
 import { useToast } from "../contexts/toast"
 
-const CodeSection = ({
+const UpdatedFilesSection = ({
   title,
-  code,
-  isLoading,
-  currentLanguage
+  updatedFiles,
+  isLoading
 }: {
   title: string
-  code: React.ReactNode
+  updatedFiles: { [filename: string]: string } | null
   isLoading: boolean
-  currentLanguage: string
-}) => (
-  <div className="space-y-2">
-    <h2 className="text-[12px] font-medium text-white tracking-wide"></h2>
-    {isLoading ? (
-      <div className="space-y-1.5">
-        <div className="mt-3 flex">
-          <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
-            Loading solutions...
-          </p>
+}) => {
+  const getLanguageFromFilename = (filename: string): string => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    switch (ext) {
+      case 'js':
+      case 'jsx':
+        return 'javascript'
+      case 'ts':
+      case 'tsx':
+        return 'typescript'
+      case 'html':
+        return 'html'
+      case 'css':
+        return 'css'
+      case 'py':
+        return 'python'
+      case 'java':
+        return 'java'
+      case 'cpp':
+      case 'c++':
+        return 'cpp'
+      case 'c':
+        return 'c'
+      default:
+        return 'javascript'
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-[12px] font-medium text-white tracking-wide">
+        {title}
+      </h2>
+      {isLoading ? (
+        <div className="space-y-1.5">
+          <div className="mt-3 flex">
+            <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+              Loading solutions...
+            </p>
+          </div>
         </div>
-      </div>
-    ) : (
-      <div className="w-full">
-        <SyntaxHighlighter
-          showLineNumbers
-          language={currentLanguage == "golang" ? "go" : currentLanguage}
-          style={dracula}
-          customStyle={{
-            maxWidth: "100%",
-            margin: 0,
-            padding: "0.85rem",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            backgroundColor: "rgba(22, 27, 34, 0.5)",
-            fontSize: "11px",
-            lineHeight: "1.35"
-          }}
-          wrapLongLines={true}
-        >
-          {code as string}
-        </SyntaxHighlighter>
-      </div>
-    )}
-  </div>
-)
+      ) : updatedFiles ? (
+        <div className="space-y-3">
+          {Object.entries(updatedFiles).map(([filename, code]) => (
+            <div key={filename} className="space-y-1">
+              <h3 className="text-[11px] font-medium text-gray-300 tracking-wide">
+                {filename}
+              </h3>
+              <div className="w-full">
+                <SyntaxHighlighter
+                  showLineNumbers
+                  language={getLanguageFromFilename(filename)}
+                  style={dracula}
+                  customStyle={{
+                    maxWidth: "100%",
+                    margin: 0,
+                    padding: "0.85rem",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    backgroundColor: "rgba(22, 27, 34, 0.5)",
+                    fontSize: "11px",
+                    lineHeight: "1.35"
+                  }}
+                  wrapLongLines={true}
+                >
+                  {code}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 async function fetchScreenshots(): Promise<Screenshot[]> {
   try {
@@ -96,14 +134,9 @@ const Debug: React.FC<DebugProps> = ({
     refetchOnWindowFocus: false
   })
 
-  const [newCode, setNewCode] = useState<string | null>(null)
+  const [updatedFiles, setUpdatedFiles] = useState<{ [filename: string]: string } | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
-  const [timeComplexityData, setTimeComplexityData] = useState<string | null>(
-    null
-  )
-  const [spaceComplexityData, setSpaceComplexityData] = useState<string | null>(
-    null
-  )
+  const [levelSummary, setLevelSummary] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
   const contentRef = useRef<HTMLDivElement>(null)
@@ -111,18 +144,16 @@ const Debug: React.FC<DebugProps> = ({
   useEffect(() => {
     // Try to get the new solution data from cache first
     const newSolution = queryClient.getQueryData(["new_solution"]) as {
-      new_code: string
+      updated_files: { [filename: string]: string }
       thoughts: string[]
-      time_complexity: string
-      space_complexity: string
+      level_summary: string
     } | null
 
     // If we have cached data, set all state variables to the cached data
     if (newSolution) {
-      setNewCode(newSolution.new_code || null)
+      setUpdatedFiles(newSolution.updated_files || null)
       setThoughtsData(newSolution.thoughts || null)
-      setTimeComplexityData(newSolution.time_complexity || null)
-      setSpaceComplexityData(newSolution.space_complexity || null)
+      setLevelSummary(newSolution.level_summary || null)
       setIsProcessing(false)
     }
 
@@ -247,19 +278,18 @@ const Debug: React.FC<DebugProps> = ({
               isLoading={!thoughtsData}
             />
 
-            {/* Code Section */}
-            <CodeSection
-              title="Solution"
-              code={newCode}
-              isLoading={!newCode}
-              currentLanguage={currentLanguage}
+            {/* Updated Files Section */}
+            <UpdatedFilesSection
+              title="Updated Files"
+              updatedFiles={updatedFiles}
+              isLoading={!updatedFiles}
             />
 
-            {/* Complexity Section */}
-            <ComplexitySection
-              timeComplexity={timeComplexityData}
-              spaceComplexity={spaceComplexityData}
-              isLoading={!timeComplexityData || !spaceComplexityData}
+            {/* Level Summary Section */}
+            <LevelSummarySection
+              summary={levelSummary}
+              currentLevel={null}
+              isLoading={!levelSummary}
             />
           </div>
         </div>

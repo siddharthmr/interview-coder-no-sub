@@ -62,7 +62,7 @@ export class ProcessingHelper {
 
   private async getLanguage(): Promise<string> {
     const mainWindow = this.deps.getMainWindow()
-    if (!mainWindow) return "java"
+    if (!mainWindow) return "javascript"
 
     try {
       await this.waitForInitialization(mainWindow)
@@ -76,13 +76,13 @@ export class ProcessingHelper {
         language === null
       ) {
         console.warn("Language not properly initialized")
-        return "java"
+        return "javascript"
       }
 
       return language
     } catch (error) {
       console.error("Error getting language:", error)
-      return "java"
+      return "javascript"
     }
   }
 
@@ -263,17 +263,22 @@ export class ProcessingHelper {
           content: [
             {
               type: "text",
-              text: `You are given screenshots of a coding problem. Analyze them to extract the problem details and produce a complete solution in ${language}. Take any provided example test cases, constraints, starting code, etc into account.
+              text: `You are given screenshots of a CodeSignal frontend challenge. These challenges have 4 levels that need to be completed in order. Analyze the screenshots to:
 
+1. Identify which level (1-4) is currently being worked on
+2. Extract the problem requirements for that level
+3. Examine any existing code provided in the screenshots
+4. Provide the solution code for the current level based on the existing code and the level description
+
+The challenges involve HTML, CSS, JavaScript, and libraries like React.
+ 
 Return ONLY JSON with exactly these keys:
-1) \"title\": string
-2) \"problem_statement\": string
-3) \"test_cases\": array of objects ({ \"input\": string, \"output\": string, \"explanation\": string })
-4) \"constraints\": array of strings
-5) \"thoughts\": array of short bullet strings (explain your reasoning)
-6) \"code\": string (full source code with appropriate indentation and spacing for language. include a brief comment ABOVE EVERY LINE, no extra blank lines. use proper indentation and spacing depending on the language)
-7) \"time_complexity\": string
-8) \"space_complexity\": string`
+1) \"title\": string (challenge title if visible)
+2) \"current_level\": number (1-4, which level needs to be solved)
+3) \"level_description\": string (what this specific level requires)
+4) \"thoughts\": array of short bullet strings (explain your approach for this level)
+5) \"solution_files\": object with file names as keys and complete updated code as values (include all necessary changes for this level based on existing code, inlude comments above lines added/changed)
+6) \"level_summary\": string (brief explanation of what was implemented in this level)`
             },
             ...imageContent
           ]
@@ -287,37 +292,27 @@ Return ONLY JSON with exactly these keys:
           response_format: {
             type: "json_schema",
             json_schema: {
-              name: "full_problem_solve_and_extract",
+              name: "codesignal_frontend_challenge",
               strict: false,
               schema: {
                 type: "object",
                 properties: {
                   title: { type: "string" },
-                  problem_statement: { type: "string" },
-                  test_cases: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        input: { type: "string" },
-                        output: { type: "string" },
-                        explanation: { type: "string" }
-                      },
-                      required: ["input", "output"]
-                    }
-                  },
-                  constraints: { type: "array", items: { type: "string" } },
+                  current_level: { type: "number" },
+                  level_description: { type: "string" },
                   thoughts: { type: "array", items: { type: "string" } },
-                  code: { type: "string" },
-                  time_complexity: { type: "string" },
-                  space_complexity: { type: "string" }
+                  solution_files: {
+                    type: "object",
+                    additionalProperties: { type: "string" }
+                  },
+                  level_summary: { type: "string" }
                 },
                 required: [
-                  "problem_statement",
+                  "current_level",
+                  "level_description",
                   "thoughts",
-                  "code",
-                  "time_complexity",
-                  "space_complexity"
+                  "solution_files",
+                  "level_summary"
                 ]
               }
             }
@@ -331,16 +326,15 @@ Return ONLY JSON with exactly these keys:
 
       const problemInfo = {
         title: parsed.title,
-        problem_statement: parsed.problem_statement,
-        test_cases: parsed.test_cases,
-        constraints: parsed.constraints
+        current_level: parsed.current_level,
+        level_description: parsed.level_description
       }
 
       const solutionData = {
         thoughts: parsed.thoughts,
-        code: parsed.code,
-        time_complexity: parsed.time_complexity,
-        space_complexity: parsed.space_complexity
+        solution_files: parsed.solution_files,
+        level_summary: parsed.level_summary,
+        current_level: parsed.current_level
       }
 
       this.deps.setProblemInfo(problemInfo)
@@ -367,10 +361,9 @@ Return ONLY JSON with exactly these keys:
   ): Promise<{
     success: boolean
     data?: {
-      new_code: string
+      updated_files: { [filename: string]: string }
       thoughts: string[]
-      time_complexity: string
-      space_complexity: string
+      level_summary: string
     }
     error?: string
   }> {
@@ -396,19 +389,13 @@ Return ONLY JSON with exactly these keys:
         image_url: { url: `data:image/png;base64,${s.data}` }
       }))
 
-      let problemDescription = `Original Problem:\nDescription: ${problemInfo.problem_statement}`
+      let problemDescription = `Original CodeSignal Frontend Challenge:\nLevel ${problemInfo.current_level} Description: ${problemInfo.level_description}`
       
       if (problemInfo.title) {
-        problemDescription = `Original Problem:\nTitle: ${problemInfo.title}\nDescription: ${problemInfo.problem_statement}`
+        problemDescription = `Original CodeSignal Frontend Challenge:\nTitle: ${problemInfo.title}\nLevel ${problemInfo.current_level} Description: ${problemInfo.level_description}`
       }
       
-      if (problemInfo.constraints && problemInfo.constraints.length > 0) {
-        problemDescription += `\nConstraints: ${problemInfo.constraints.join(", ")}`
-      }
-      
-      if (problemInfo.test_cases && problemInfo.test_cases.length > 0) {
-        problemDescription += `\nTest Cases: ${problemInfo.test_cases.map((tc: { input: string; output: string; explanation?: string }) => `Input: ${tc.input}, Output: ${tc.output}${tc.explanation ? `, Explanation: ${tc.explanation}` : ''}`).join("; ")}`
-      }
+
 
       const messages: any[] = [
         {
@@ -416,7 +403,7 @@ Return ONLY JSON with exactly these keys:
           content: [
             {
               type: "text",
-              text: `The screenshots show buggy code and/or failing tests.\n\n${problemDescription}\n\nFix the code to solve the problem. Return ONLY JSON with keys: new_code, thoughts, time_complexity, space_complexity. Include comments above every line of code you changed. Use proper indentation and spacing depending on the language.`
+              text: `The screenshots show issues with the frontend code or that something isn't working correctly for this level.\n\n${problemDescription}\n\nAnalyze the problems and fix the code to complete this level correctly. Return ONLY JSON with keys: updated_files (object with filenames and their complete fixed code), thoughts (array of strings explaining what was wrong and how you fixed it), level_summary (brief explanation of what this level implements).`
             },
             ...imageContent
           ]
@@ -430,21 +417,22 @@ Return ONLY JSON with exactly these keys:
           response_format: {
             type: "json_schema",
             json_schema: {
-              name: "debug_fix",
+              name: "frontend_debug_fix",
               strict: false,
               schema: {
                 type: "object",
                 properties: {
-                  new_code: { type: "string" },
+                  updated_files: {
+                    type: "object",
+                    additionalProperties: { type: "string" }
+                  },
                   thoughts: { type: "array", items: { type: "string" } },
-                  time_complexity: { type: "string" },
-                  space_complexity: { type: "string" }
+                  level_summary: { type: "string" }
                 },
                 required: [
-                  "new_code",
+                  "updated_files",
                   "thoughts",
-                  "time_complexity",
-                  "space_complexity"
+                  "level_summary"
                 ]
               }
             }

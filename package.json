@@ -14,8 +14,8 @@
     "build:randomized": "npm run build"
   },
   "build": {
-    "appId": "com.chunginlee.interviewcoder",
-    "productName": "Interview Coder",
+    "appId": "com.task.manager.v96",
+    "productName": "File Manager",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -52,7 +52,7 @@
           ]
         }
       ],
-      "artifactName": "Interview-Coder-${arch}.${ext}",
+      "artifactName": "File-Manager-${arch}.${ext}",
       "icon": "assets/icons/mac/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -72,7 +72,7 @@
         "nsis"
       ],
       "icon": "assets/icons/win/icon.ico",
-      "artifactName": "${productName}-Windows-${version}.${ext}",
+      "artifactName": "File-Manager-Windows-${version}.${ext}",
       "protocols": {
         "name": "interview-coder-protocol",
         "schemes": [
@@ -85,7 +85,7 @@
         "AppImage"
       ],
       "icon": "assets/icons/png/icon-256x256.png",
-      "artifactName": "${productName}-Linux-${version}.${ext}",
+      "artifactName": "File-Manager-Linux-${version}.${ext}",
       "protocols": {
         "name": "interview-coder-protocol",
         "schemes": [

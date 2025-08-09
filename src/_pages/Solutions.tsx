@@ -6,7 +6,7 @@ import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 
 import ScreenshotQueue from "../components/Queue/ScreenshotQueue"
 
-import { ProblemStatementData } from "../types/solutions"
+import { ProblemStatementData, SolutionData } from "../types/solutions"
 import SolutionCommands from "../components/Solutions/SolutionCommands"
 import Debug from "./Debug"
 import { useToast } from "../contexts/toast"
@@ -38,85 +38,110 @@ export const ContentSection = ({
     )}
   </div>
 )
-const SolutionSection = ({
+const SolutionFilesSection = ({
   title,
-  content,
-  isLoading,
-  currentLanguage
-}: {
-  title: string
-  content: React.ReactNode
-  isLoading: boolean
-  currentLanguage: string
-}) => (
-  <div className="space-y-2">
-    <h2 className="text-[12px] font-medium text-white tracking-wide">
-      {title}
-    </h2>
-    {isLoading ? (
-      <div className="space-y-1.5">
-        <div className="mt-3 flex">
-          <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
-            Loading solutions...
-          </p>
-        </div>
-      </div>
-    ) : (
-      <div className="w-full">
-        <SyntaxHighlighter
-          showLineNumbers
-          language={currentLanguage == "golang" ? "go" : currentLanguage}
-          style={dracula}
-          customStyle={{
-            maxWidth: "100%",
-            margin: 0,
-            padding: "0.85rem",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            backgroundColor: "rgba(22, 27, 34, 0.5)",
-            fontSize: "11px",
-            lineHeight: "1.35"
-          }}
-          wrapLongLines={true}
-        >
-          {content as string}
-        </SyntaxHighlighter>
-      </div>
-    )}
-  </div>
-)
-
-export const ComplexitySection = ({
-  timeComplexity,
-  spaceComplexity,
+  solutionFiles,
   isLoading
 }: {
-  timeComplexity: string | null
-  spaceComplexity: string | null
+  title: string
+  solutionFiles: { [filename: string]: string } | null
+  isLoading: boolean
+}) => {
+  const getLanguageFromFilename = (filename: string): string => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    switch (ext) {
+      case 'js':
+      case 'jsx':
+        return 'javascript'
+      case 'ts':
+      case 'tsx':
+        return 'typescript'
+      case 'html':
+        return 'html'
+      case 'css':
+        return 'css'
+      case 'py':
+        return 'python'
+      case 'java':
+        return 'java'
+      case 'cpp':
+      case 'c++':
+        return 'cpp'
+      case 'c':
+        return 'c'
+      default:
+        return 'javascript'
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-[12px] font-medium text-white tracking-wide">
+        {title}
+      </h2>
+      {isLoading ? (
+        <div className="space-y-1.5">
+          <div className="mt-3 flex">
+            <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+              Loading solutions...
+            </p>
+          </div>
+        </div>
+      ) : solutionFiles ? (
+        <div className="space-y-3">
+          {Object.entries(solutionFiles).map(([filename, code]) => (
+            <div key={filename} className="space-y-1">
+              <h3 className="text-[11px] font-medium text-gray-300 tracking-wide">
+                {filename}
+              </h3>
+              <div className="w-full">
+                <SyntaxHighlighter
+                  showLineNumbers
+                  language={getLanguageFromFilename(filename)}
+                  style={dracula}
+                  customStyle={{
+                    maxWidth: "100%",
+                    margin: 0,
+                    padding: "0.85rem",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    backgroundColor: "rgba(22, 27, 34, 0.5)",
+                    fontSize: "11px",
+                    lineHeight: "1.35"
+                  }}
+                  wrapLongLines={true}
+                >
+                  {code}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export const LevelSummarySection = ({
+  summary,
+  currentLevel,
+  isLoading
+}: {
+  summary: string | null
+  currentLevel: number | null
   isLoading: boolean
 }) => (
   <div className="space-y-2">
     <h2 className="text-[12px] font-medium text-white tracking-wide">
-      Complexity
+      Level {currentLevel} Summary
     </h2>
     {isLoading ? (
       <p className="text-[11px] bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
-        Calculating complexity...
+        Generating summary...
       </p>
     ) : (
-      <div className="space-y-1">
-        <div className="flex items-start gap-2 text-[12px] leading-[1.35] text-gray-100">
-          <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-1.5 shrink-0" />
-          <div>
-            <strong>Time:</strong> {timeComplexity}
-          </div>
-        </div>
-        <div className="flex items-start gap-2 text-[12px] leading-[1.35] text-gray-100">
-          <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-1.5 shrink-0" />
-          <div>
-            <strong>Space:</strong> {spaceComplexity}
-          </div>
-        </div>
+      <div className="text-[12px] leading-[1.35] text-gray-100 max-w-[600px]">
+        {summary}
       </div>
     )}
   </div>
@@ -140,14 +165,11 @@ const Solutions: React.FC<SolutionsProps> = ({
   const [debugProcessing, setDebugProcessing] = useState(false)
   const [problemStatementData, setProblemStatementData] =
     useState<ProblemStatementData | null>(null)
-  const [solutionData, setSolutionData] = useState<string | null>(null)
+  const [solutionData, setSolutionData] = useState<SolutionData | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
-  const [timeComplexityData, setTimeComplexityData] = useState<string | null>(
-    null
-  )
-  const [spaceComplexityData, setSpaceComplexityData] = useState<string | null>(
-    null
-  )
+  const [solutionFiles, setSolutionFiles] = useState<{ [filename: string]: string } | null>(null)
+  const [levelSummary, setLevelSummary] = useState<string | null>(null)
+  const [currentLevel, setCurrentLevel] = useState<number | null>(null)
 
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const [tooltipHeight, setTooltipHeight] = useState(0)
@@ -254,8 +276,9 @@ const Solutions: React.FC<SolutionsProps> = ({
         // Every time processing starts, reset relevant states
         setSolutionData(null)
         setThoughtsData(null)
-        setTimeComplexityData(null)
-        setSpaceComplexityData(null)
+        setSolutionFiles(null)
+        setLevelSummary(null)
+        setCurrentLevel(null)
       }),
       window.electronAPI.onProblemExtracted((data) => {
         queryClient.setQueryData(["problem_statement"], data)
@@ -263,20 +286,16 @@ const Solutions: React.FC<SolutionsProps> = ({
       //if there was an error processing the initial solution
       window.electronAPI.onSolutionError((error: string) => {
         showToast("Processing Failed", error, "error")
-        // Reset solutions in the cache (even though this shouldn't ever happen) and complexities to previous states
-        const solution = queryClient.getQueryData(["solution"]) as {
-          code: string
-          thoughts: string[]
-          time_complexity: string
-          space_complexity: string
-        } | null
+        // Reset solutions in the cache (even though this shouldn't ever happen) and restore to previous states
+        const solution = queryClient.getQueryData(["solution"]) as SolutionData | null
         if (!solution) {
           setView("queue")
         }
-        setSolutionData(solution?.code || null)
+        setSolutionData(solution)
         setThoughtsData(solution?.thoughts || null)
-        setTimeComplexityData(solution?.time_complexity || null)
-        setSpaceComplexityData(solution?.space_complexity || null)
+        setSolutionFiles(solution?.solution_files || null)
+        setLevelSummary(solution?.level_summary || null)
+        setCurrentLevel(solution?.current_level || null)
         console.error("Processing error:", error)
       }),
       //when the initial solution is generated, we'll set the solution data to that
@@ -286,18 +305,19 @@ const Solutions: React.FC<SolutionsProps> = ({
           return
         }
         console.log({ data })
-        const solutionData = {
-          code: data.code,
+        const solutionData: SolutionData = {
           thoughts: data.thoughts,
-          time_complexity: data.time_complexity,
-          space_complexity: data.space_complexity
+          solution_files: data.solution_files,
+          level_summary: data.level_summary,
+          current_level: data.current_level
         }
 
         queryClient.setQueryData(["solution"], solutionData)
-        setSolutionData(solutionData.code || null)
+        setSolutionData(solutionData)
         setThoughtsData(solutionData.thoughts || null)
-        setTimeComplexityData(solutionData.time_complexity || null)
-        setSpaceComplexityData(solutionData.space_complexity || null)
+        setSolutionFiles(solutionData.solution_files || null)
+        setLevelSummary(solutionData.level_summary || null)
+        setCurrentLevel(solutionData.current_level || null)
 
         // Fetch latest screenshots when solution is successful
         const fetchScreenshots = async () => {
@@ -370,17 +390,13 @@ const Solutions: React.FC<SolutionsProps> = ({
         )
       }
       if (event?.query.queryKey[0] === "solution") {
-        const solution = queryClient.getQueryData(["solution"]) as {
-          code: string
-          thoughts: string[]
-          time_complexity: string
-          space_complexity: string
-        } | null
+        const solution = queryClient.getQueryData(["solution"]) as SolutionData | null
 
-        setSolutionData(solution?.code ?? null)
+        setSolutionData(solution)
         setThoughtsData(solution?.thoughts ?? null)
-        setTimeComplexityData(solution?.time_complexity ?? null)
-        setSpaceComplexityData(solution?.space_complexity ?? null)
+        setSolutionFiles(solution?.solution_files ?? null)
+        setLevelSummary(solution?.level_summary ?? null)
+        setCurrentLevel(solution?.current_level ?? null)
       }
     })
     return () => unsubscribe()
@@ -464,8 +480,8 @@ const Solutions: React.FC<SolutionsProps> = ({
                 {!solutionData && (
                   <>
                     <ContentSection
-                      title="Problem Statement"
-                      content={problemStatementData?.problem_statement}
+                      title={`CodeSignal Frontend Challenge${problemStatementData?.current_level ? ` - Level ${problemStatementData.current_level}` : ''}`}
+                      content={problemStatementData?.level_description}
                       isLoading={!problemStatementData}
                     />
                     {problemStatementData && (
@@ -502,17 +518,16 @@ const Solutions: React.FC<SolutionsProps> = ({
                       isLoading={!thoughtsData}
                     />
 
-                    <SolutionSection
-                      title="Solution"
-                      content={solutionData}
-                      isLoading={!solutionData}
-                      currentLanguage={currentLanguage}
+                    <SolutionFilesSection
+                      title="Solution Files"
+                      solutionFiles={solutionFiles}
+                      isLoading={!solutionFiles}
                     />
 
-                    <ComplexitySection
-                      timeComplexity={timeComplexityData}
-                      spaceComplexity={spaceComplexityData}
-                      isLoading={!timeComplexityData || !spaceComplexityData}
+                    <LevelSummarySection
+                      summary={levelSummary}
+                      currentLevel={currentLevel}
+                      isLoading={!levelSummary}
                     />
                   </>
                 )}
